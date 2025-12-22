@@ -2,6 +2,8 @@ import { getSettingsAndPresets, updateSettings, addCostPreset, deleteCostPreset 
 import Link from "next/link";
 import { Trash2, Plus } from "lucide-react";
 
+export const dynamic = 'force-dynamic';
+
 export default async function SettingsPage() {
   const { settings, presets } = await getSettingsAndPresets();
 
