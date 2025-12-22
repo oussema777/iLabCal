@@ -63,7 +63,6 @@ export default async function SettingsPage() {
         </div>
 
         <div className="p-8 space-y-6">
-          {/* List of Existing Presets */}
           <div className="space-y-2">
             {presets.map((preset) => (
               <div key={preset.id} className="flex items-center justify-between p-3 bg-gray-50 rounded border border-gray-200">
@@ -71,7 +70,10 @@ export default async function SettingsPage() {
                   <span className="font-semibold text-gray-800 w-40">{preset.name}</span>
                   <span className="text-gray-600">{preset.defaultAmount} TND</span>
                 </div>
-                <form action={deleteCostPreset.bind(null, preset.id)}>
+                <form action={async (formData) => {
+                  "use server";
+                  await deleteCostPreset(preset.id);
+                }}>
                    <button type="submit" className="text-red-500 hover:text-red-700 p-2 hover:bg-red-50 rounded">
                      <Trash2 size={18} />
                    </button>
@@ -80,9 +82,8 @@ export default async function SettingsPage() {
             ))}
           </div>
 
-          {/* Add New Preset Form */}
           <form action={addCostPreset} className="flex gap-4 pt-4 border-t border-gray-100">
-            <input type="text" name="name" placeholder="New Cost Name (e.g. Special Glue)" required className="flex-1 p-2 border rounded text-sm" />
+            <input type="text" name="name" placeholder="New Cost Name" required className="flex-1 p-2 border rounded text-sm" />
             <input type="number" step="0.1" name="defaultAmount" placeholder="Amount" required className="w-24 p-2 border rounded text-sm" />
             <button type="submit" className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-bold">
               <Plus size={16} /> Add
@@ -90,7 +91,6 @@ export default async function SettingsPage() {
           </form>
         </div>
       </div>
-
     </main>
   );
 }

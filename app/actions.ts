@@ -38,7 +38,7 @@ export async function getSettingsAndPresets() {
   return { settings, presets };
 }
 
-export async function updateSettings(formData: FormData) {
+export async function updateSettings(formData: FormData): Promise<void> {
   const data = {
     filamentCostPerGram: parseFloat(formData.get("filamentCostPerGram") as string),
     elecCostPerHour: parseFloat(formData.get("elecCostPerHour") as string),
@@ -59,7 +59,7 @@ export async function updateSettings(formData: FormData) {
   revalidatePath("/settings");
 }
 
-export async function addCostPreset(formData: FormData) {
+export async function addCostPreset(formData: FormData): Promise<void> {
   const name = formData.get("name") as string;
   const defaultAmount = parseFloat(formData.get("defaultAmount") as string);
   await prisma.costPreset.create({ data: { name, defaultAmount } });
@@ -67,7 +67,7 @@ export async function addCostPreset(formData: FormData) {
   revalidatePath("/");
 }
 
-export async function deleteCostPreset(id: number) {
+export async function deleteCostPreset(id: number): Promise<void> {
   await prisma.costPreset.delete({ where: { id } });
   revalidatePath("/settings");
   revalidatePath("/");
@@ -109,7 +109,7 @@ async function calculateProductData(formData: FormData) {
 
 // --- ACTIONS ---
 
-export async function saveDraft(formData: FormData) {
+export async function saveDraft(formData: FormData): Promise<void> {
   const { inputs, additionalCosts, baseCost, finalProductCost, totalPriceTND } = await calculateProductData(formData);
 
   await prisma.product.create({
@@ -127,17 +127,16 @@ export async function saveDraft(formData: FormData) {
       totalCost: baseCost,
       finalPrice: finalProductCost,
       sellingPrice: totalPriceTND,
-      isValidated: false, // DRAFT STATUS
+      isValidated: false,
     }
   });
 
   revalidatePath("/");
 }
 
-export async function validateAndScheduleProduct(formData: FormData) {
+export async function validateAndScheduleProduct(formData: FormData): Promise<void> {
   const { inputs, additionalCosts, baseCost, finalProductCost, totalPriceTND } = await calculateProductData(formData);
 
-  // Scheduling Logic
   const lastJob = await prisma.productionQueue.findFirst({ orderBy: { endTime: "desc" } });
   const now = new Date();
   let startTime = now;
@@ -163,7 +162,7 @@ export async function validateAndScheduleProduct(formData: FormData) {
         totalCost: baseCost,
         finalPrice: finalProductCost,
         sellingPrice: totalPriceTND,
-        isValidated: true, // VALIDATED
+        isValidated: true,
       }
     });
 
@@ -175,8 +174,7 @@ export async function validateAndScheduleProduct(formData: FormData) {
   revalidatePath("/");
 }
 
-export async function publishProduct(productId: number, printHours: number) {
-  // Scheduling Logic (Same as validate)
+export async function publishProduct(productId: number, printHours: number): Promise<void> {
   const lastJob = await prisma.productionQueue.findFirst({ orderBy: { endTime: "desc" } });
   const now = new Date();
   let startTime = now;
@@ -200,14 +198,12 @@ export async function publishProduct(productId: number, printHours: number) {
   revalidatePath("/");
 }
 
-export async function unpublishProduct(productId: number) {
+export async function unpublishProduct(productId: number): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    // Remove from queue
     await tx.productionQueue.delete({
       where: { productId }
     });
 
-    // Mark as draft
     await tx.product.update({
       where: { id: productId },
       data: { isValidated: false }
@@ -217,7 +213,7 @@ export async function unpublishProduct(productId: number) {
   revalidatePath("/");
 }
 
-export async function deleteProduct(productId: number) {
+export async function deleteProduct(productId: number): Promise<void> {
   const queueItem = await prisma.productionQueue.findUnique({ where: { productId } });
   
   await prisma.$transaction(async (tx) => {

@@ -27,7 +27,6 @@ type ActiveCost = {
 export default function Calculator({ settings, presets }: { settings: Settings, presets: Preset[] }) {
   const [isPending, startTransition] = useTransition();
 
-  // STATE: Core Inputs
   const [inputs, setInputs] = useState({
     name: "",
     customerName: "",
@@ -39,7 +38,6 @@ export default function Calculator({ settings, presets }: { settings: Settings, 
     employeeHours: 1,
   });
 
-  // STATE: Dynamic Costs
   const [activeCosts, setActiveCosts] = useState<ActiveCost[]>([]);
 
   useEffect(() => {
@@ -59,14 +57,11 @@ export default function Calculator({ settings, presets }: { settings: Settings, 
     totalPriceTND: 0,
   });
 
-  // CALCULATE LOGIC
   useEffect(() => {
     const totalFilamentCost = inputs.filamentWeight * settings.filamentCostPerGram;
     const totalElecCost = inputs.printHours * settings.elecCostPerHour;
     const totalEmployeeCost = inputs.employeeHours * settings.employeeHourlyRate;
-    
     const totalAdditionalCost = activeCosts.reduce((sum, item) => sum + (item.amount || 0), 0);
-
     const baseCost = totalFilamentCost + totalElecCost + totalEmployeeCost + totalAdditionalCost;
     const amortization = baseCost * settings.amortizationRate;
     const finalProductCost = baseCost + amortization;
@@ -129,18 +124,26 @@ export default function Calculator({ settings, presets }: { settings: Settings, 
   const handleValidate = async () => {
     const formData = prepareFormData();
     startTransition(async () => {
-        await validateAndScheduleProduct(formData);
-        alert("Published to Schedule!");
-        resetForm();
+        try {
+            await validateAndScheduleProduct(formData);
+            alert("Published to Schedule!");
+            resetForm();
+        } catch (e) {
+            alert("Error scheduling product.");
+        }
     });
   };
 
   const handleDraft = async () => {
     const formData = prepareFormData();
     startTransition(async () => {
-        await saveDraft(formData);
-        alert("Saved as Draft!");
-        resetForm();
+        try {
+            await saveDraft(formData);
+            alert("Saved as Draft!");
+            resetForm();
+        } catch (e) {
+            alert("Error saving draft.");
+        }
     });
   };
 
@@ -162,8 +165,6 @@ export default function Calculator({ settings, presets }: { settings: Settings, 
       </div>
 
       <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-12">
-        
-        {/* LEFT COLUMN */}
         <div className="space-y-6">
           <div className="bg-blue-50 p-6 rounded-xl space-y-4 border border-blue-100 shadow-sm">
             <h3 className="text-xs font-bold text-blue-800 uppercase tracking-widest border-b border-blue-200 pb-2">Client & Project Info</h3>
@@ -232,7 +233,6 @@ export default function Calculator({ settings, presets }: { settings: Settings, 
           </div>
         </div>
 
-        {/* RIGHT COLUMN */}
         <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 space-y-6 h-fit">
           <h3 className="text-lg font-semibold text-gray-700">Cost Breakdown</h3>
           <div className="space-y-3 text-sm">
@@ -265,9 +265,7 @@ export default function Calculator({ settings, presets }: { settings: Settings, 
                 <CheckCircle size={18} /> Publish
             </button>
           </div>
-
         </div>
-
       </div>
     </div>
   );
