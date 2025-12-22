@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model GlobalSettings {
+  id              Int     @id @default(1)
+  filamentCostPerGram Float @default(0.09)
+  elecCostPerHour     Float @default(0.2)
+  employeeHourlyRate  Float @default(6.0)
+  amortizationRate    Float @default(0.05)
+  vatRate             Float @default(0.19)
+  marginRate          Float @default(0.60)
+}
+
+model CostPreset {
+  id            Int     @id @default(autoincrement())
+  name          String
+  defaultAmount Float   @default(0)
+}
+
+model Product {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  
+  // Identifiers
+  name          String  @default("Untitled Project")
+  
+  // Customer Details
+  customerName    String?
+  customerPhone   String?
+  customerAddress String?
+  customerNotes   String?
+  
+  // Inputs
+  filamentWeight Float // in grams
+  printHours     Float
+  employeeHours  Float
+
+  // Dynamic Costs (JSON)
+  additionalCosts String 
+
+  // Calculated Results
+  totalCost      Float
+  finalPrice     Float
+  sellingPrice   Float
+  
+  // Status
+  isValidated    Boolean @default(false)
+  
+  queueItem      ProductionQueue?
+}
+
+model ProductionQueue {
+  id        Int      @id @default(autoincrement())
+  productId Int      @unique
+  product   Product  @relation(fields: [productId], references: [id])
+  
+  startTime DateTime
+  endTime   DateTime
+}
