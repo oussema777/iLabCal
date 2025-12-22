@@ -57,7 +57,6 @@ export async function updateSettings(formData: FormData) {
 
   revalidatePath("/");
   revalidatePath("/settings");
-  return { success: true };
 }
 
 export async function addCostPreset(formData: FormData) {
@@ -133,7 +132,6 @@ export async function saveDraft(formData: FormData) {
   });
 
   revalidatePath("/");
-  return { success: true };
 }
 
 export async function validateAndScheduleProduct(formData: FormData) {
@@ -175,7 +173,6 @@ export async function validateAndScheduleProduct(formData: FormData) {
   });
 
   revalidatePath("/");
-  return { success: true };
 }
 
 export async function publishProduct(productId: number, printHours: number) {
@@ -221,8 +218,6 @@ export async function unpublishProduct(productId: number) {
 }
 
 export async function deleteProduct(productId: number) {
-  // We can delete directly because CASCADE delete should handle the queue item if it exists
-  // But to be safe, we'll try to delete from queue first if it exists
   const queueItem = await prisma.productionQueue.findUnique({ where: { productId } });
   
   await prisma.$transaction(async (tx) => {
