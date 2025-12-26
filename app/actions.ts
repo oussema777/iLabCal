@@ -1,6 +1,6 @@
 "use server";
 
-import prisma from "@/lib/prisma";
+import { supabase } from "./lib/supabaseClient";
 import { revalidatePath } from "next/cache";
 
 // --- SETTINGS & PRESETS ---
@@ -24,18 +24,34 @@ const DEFAULT_COST_PRESETS = [
 ];
 
 export async function getSettingsAndPresets() {
-  let settings = await prisma.globalSettings.findFirst();
+  let { data: settings, error: settingsError } = await supabase
+    .from('GlobalSettings')
+    .select('*')
+    .limit(1)
+    .single();
+
   if (!settings) {
-    settings = await prisma.globalSettings.create({ data: DEFAULT_SETTINGS });
+    const { data: newSettings } = await supabase
+      .from('GlobalSettings')
+      .insert(DEFAULT_SETTINGS)
+      .select()
+      .single();
+    settings = newSettings;
   }
 
-  let presets = await prisma.costPreset.findMany();
-  if (presets.length === 0) {
-    await prisma.costPreset.createMany({ data: DEFAULT_COST_PRESETS });
-    presets = await prisma.costPreset.findMany();
+  let { data: presets } = await supabase
+    .from('CostPreset')
+    .select('*');
+
+  if (!presets || presets.length === 0) {
+    const { data: newPresets } = await supabase
+      .from('CostPreset')
+      .insert(DEFAULT_COST_PRESETS)
+      .select();
+    presets = newPresets;
   }
 
-  return { settings, presets };
+  return { settings: settings || DEFAULT_SETTINGS, presets: presets || [] };
 }
 
 export async function updateSettings(formData: FormData): Promise<void> {
@@ -48,11 +64,12 @@ export async function updateSettings(formData: FormData): Promise<void> {
     marginRate: parseFloat(formData.get("marginRate") as string),
   };
 
-  const settings = await prisma.globalSettings.findFirst();
-  if (settings) {
-    await prisma.globalSettings.update({ where: { id: settings.id }, data });
+  const { data: currentSettings } = await supabase.from('GlobalSettings').select('id').limit(1).single();
+
+  if (currentSettings) {
+    await supabase.from('GlobalSettings').update(data).eq('id', currentSettings.id);
   } else {
-    await prisma.globalSettings.create({ data });
+    await supabase.from('GlobalSettings').insert(data);
   }
 
   revalidatePath("/");
@@ -62,13 +79,13 @@ export async function updateSettings(formData: FormData): Promise<void> {
 export async function addCostPreset(formData: FormData): Promise<void> {
   const name = formData.get("name") as string;
   const defaultAmount = parseFloat(formData.get("defaultAmount") as string);
-  await prisma.costPreset.create({ data: { name, defaultAmount } });
+  await supabase.from('CostPreset').insert({ name, defaultAmount });
   revalidatePath("/settings");
   revalidatePath("/");
 }
 
 export async function deleteCostPreset(id: number): Promise<void> {
-  await prisma.costPreset.delete({ where: { id } });
+  await supabase.from('CostPreset').delete().eq('id', id);
   revalidatePath("/settings");
   revalidatePath("/");
 }
@@ -112,23 +129,21 @@ async function calculateProductData(formData: FormData) {
 export async function saveDraft(formData: FormData): Promise<void> {
   const { inputs, additionalCosts, baseCost, finalProductCost, totalPriceTND } = await calculateProductData(formData);
 
-  await prisma.product.create({
-    data: {
-      name: inputs.name,
-      customerName: inputs.customerName,
-      customerPhone: inputs.customerPhone,
-      customerAddress: inputs.customerAddress,
-      customerNotes: inputs.customerNotes,
-      filamentWeight: inputs.filamentWeight,
-      printHours: inputs.printHours,
-      employeeHours: inputs.employeeHours,
-      additionalCosts: JSON.stringify(additionalCosts),
-      
-      totalCost: baseCost,
-      finalPrice: finalProductCost,
-      sellingPrice: totalPriceTND,
-      isValidated: false,
-    }
+  await supabase.from('Product').insert({
+    name: inputs.name,
+    customerName: inputs.customerName,
+    customerPhone: inputs.customerPhone,
+    customerAddress: inputs.customerAddress,
+    customerNotes: inputs.customerNotes,
+    filamentWeight: inputs.filamentWeight,
+    printHours: inputs.printHours,
+    employeeHours: inputs.employeeHours,
+    additionalCosts: JSON.stringify(additionalCosts),
+    
+    totalCost: baseCost,
+    finalPrice: finalProductCost,
+    sellingPrice: totalPriceTND,
+    isValidated: false,
   });
 
   revalidatePath("/");
@@ -137,91 +152,89 @@ export async function saveDraft(formData: FormData): Promise<void> {
 export async function validateAndScheduleProduct(formData: FormData): Promise<void> {
   const { inputs, additionalCosts, baseCost, finalProductCost, totalPriceTND } = await calculateProductData(formData);
 
-  const lastJob = await prisma.productionQueue.findFirst({ orderBy: { endTime: "desc" } });
+  const { data: lastJobs } = await supabase
+    .from('ProductionQueue')
+    .select('endTime')
+    .order('endTime', { ascending: false })
+    .limit(1);
+
+  const lastJob = lastJobs?.[0];
   const now = new Date();
   let startTime = now;
-  if (lastJob && lastJob.endTime > now) {
-    startTime = new Date(lastJob.endTime.getTime() + 15 * 60000);
+  
+  if (lastJob && new Date(lastJob.endTime) > now) {
+    startTime = new Date(new Date(lastJob.endTime).getTime() + 15 * 60000);
   }
+  
   const printDurationMs = inputs.printHours * 60 * 60 * 1000;
   const endTime = new Date(startTime.getTime() + printDurationMs);
 
-  await prisma.$transaction(async (tx) => {
-    const product = await tx.product.create({
-      data: {
-        name: inputs.name,
-        customerName: inputs.customerName,
-        customerPhone: inputs.customerPhone,
-        customerAddress: inputs.customerAddress,
-        customerNotes: inputs.customerNotes,
-        filamentWeight: inputs.filamentWeight,
-        printHours: inputs.printHours,
-        employeeHours: inputs.employeeHours,
-        additionalCosts: JSON.stringify(additionalCosts),
-        
-        totalCost: baseCost,
-        finalPrice: finalProductCost,
-        sellingPrice: totalPriceTND,
-        isValidated: true,
-      }
-    });
+  const { data: product, error: pError } = await supabase.from('Product').insert({
+    name: inputs.name,
+    customerName: inputs.customerName,
+    customerPhone: inputs.customerPhone,
+    customerAddress: inputs.customerAddress,
+    customerNotes: inputs.customerNotes,
+    filamentWeight: inputs.filamentWeight,
+    printHours: inputs.printHours,
+    employeeHours: inputs.employeeHours,
+    additionalCosts: JSON.stringify(additionalCosts),
+    
+    totalCost: baseCost,
+    finalPrice: finalProductCost,
+    sellingPrice: totalPriceTND,
+    isValidated: true,
+  }).select().single();
 
-    await tx.productionQueue.create({
-      data: { productId: product.id, startTime, endTime }
+  if (product) {
+    await supabase.from('ProductionQueue').insert({
+      productId: product.id,
+      startTime: startTime.toISOString(),
+      endTime: endTime.toISOString()
     });
-  });
+  }
 
   revalidatePath("/");
 }
 
 export async function publishProduct(productId: number, printHours: number): Promise<void> {
-  const lastJob = await prisma.productionQueue.findFirst({ orderBy: { endTime: "desc" } });
+  const { data: lastJobs } = await supabase
+    .from('ProductionQueue')
+    .select('endTime')
+    .order('endTime', { ascending: false })
+    .limit(1);
+
+  const lastJob = lastJobs?.[0];
   const now = new Date();
   let startTime = now;
-  if (lastJob && lastJob.endTime > now) {
-    startTime = new Date(lastJob.endTime.getTime() + 15 * 60000);
+  
+  if (lastJob && new Date(lastJob.endTime) > now) {
+    startTime = new Date(new Date(lastJob.endTime).getTime() + 15 * 60000);
   }
+  
   const printDurationMs = printHours * 60 * 60 * 1000;
   const endTime = new Date(startTime.getTime() + printDurationMs);
 
-  await prisma.$transaction(async (tx) => {
-    await tx.product.update({
-      where: { id: productId },
-      data: { isValidated: true }
-    });
-
-    await tx.productionQueue.create({
-      data: { productId, startTime, endTime }
-    });
+  await supabase.from('Product').update({ isValidated: true }).eq('id', productId);
+  await supabase.from('ProductionQueue').insert({
+    productId,
+    startTime: startTime.toISOString(),
+    endTime: endTime.toISOString()
   });
 
   revalidatePath("/");
 }
 
 export async function unpublishProduct(productId: number): Promise<void> {
-  await prisma.$transaction(async (tx) => {
-    await tx.productionQueue.delete({
-      where: { productId }
-    });
-
-    await tx.product.update({
-      where: { id: productId },
-      data: { isValidated: false }
-    });
-  });
+  await supabase.from('ProductionQueue').delete().eq('productId', productId);
+  await supabase.from('Product').update({ isValidated: false }).eq('id', productId);
 
   revalidatePath("/");
 }
 
 export async function deleteProduct(productId: number): Promise<void> {
-  const queueItem = await prisma.productionQueue.findUnique({ where: { productId } });
-  
-  await prisma.$transaction(async (tx) => {
-    if (queueItem) {
-      await tx.productionQueue.delete({ where: { productId } });
-    }
-    await tx.product.delete({ where: { id: productId } });
-  });
+  await supabase.from('ProductionQueue').delete().eq('productId', productId);
+  await supabase.from('Product').delete().eq('id', productId);
 
   revalidatePath("/");
 }

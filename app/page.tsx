@@ -1,6 +1,6 @@
 import Calculator from "./components/Calculator";
 import ProductionManager from "./components/ProductionManager";
-import prisma from "@/lib/prisma";
+import { supabase } from "./lib/supabaseClient";
 import { getSettingsAndPresets } from "./actions"; 
 import Link from "next/link";
 import { Settings } from "lucide-react";
@@ -9,28 +9,23 @@ export const dynamic = 'force-dynamic';
 
 export default async function Home() {
   // 1. Fetch Schedule (Items in queue)
-  let schedule: any[] = [];
-  try {
-    schedule = await prisma.productionQueue.findMany({
-      include: { product: true },
-      orderBy: { startTime: 'asc' }
-    });
-  } catch (e) {
-    console.log("Database not ready yet.");
-  }
+  let { data: queueData } = await supabase
+    .from('ProductionQueue')
+    .select('*, product:Product(*)')
+    .order('startTime', { ascending: true });
+
+  const schedule = (queueData || []).map(item => ({
+    ...item,
+    startTime: new Date(item.startTime),
+    endTime: new Date(item.endTime),
+  }));
 
   // 2. Fetch Drafts (Items NOT in queue)
-  let drafts: any[] = [];
-  try {
-    drafts = await prisma.product.findMany({
-      where: {
-        isValidated: false
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-  } catch (e) {
-    console.log("Database not ready yet.");
-  }
+  let { data: drafts } = await supabase
+    .from('Product')
+    .select('*')
+    .eq('isValidated', false)
+    .order('createdAt', { ascending: false });
 
   // 3. Fetch Settings & Presets
   const { settings, presets } = await getSettingsAndPresets();
@@ -47,7 +42,7 @@ export default async function Home() {
       </div>
 
       <Calculator settings={settings} presets={presets} />
-      <ProductionManager drafts={drafts} schedule={schedule} />
+      <ProductionManager drafts={drafts || []} schedule={schedule} />
     </main>
   );
 }

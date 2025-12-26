@@ -72,9 +72,9 @@ export default async function SettingsPage() {
                   <span className="font-semibold text-gray-800 w-40">{preset.name}</span>
                   <span className="text-gray-600">{preset.defaultAmount} TND</span>
                 </div>
-                <form action={async (formData) => {
+                <form action={async () => {
                   "use server";
-                  await deleteCostPreset(preset.id);
+                  await deleteCostPreset(Number(preset.id));
                 }}>
                    <button type="submit" className="text-red-500 hover:text-red-700 p-2 hover:bg-red-50 rounded">
                      <Trash2 size={18} />
