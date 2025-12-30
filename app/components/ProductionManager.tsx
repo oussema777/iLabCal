@@ -13,6 +13,7 @@ type ProductData = {
   customerNotes?: string | null;
   filamentWeight: number;
   printHours: number;
+  sellingPrice: number;
   isValidated: boolean;
 };
 
@@ -155,6 +156,9 @@ function QueueCard({ item }: { item: ScheduleItem }) {
                     <CheckCircle size={10} /> Scheduled
                 </span>
                 <span className="text-xs text-gray-400 font-medium">{item.product.filamentWeight}g Filament</span>
+                <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                    {item.product.sellingPrice?.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} DT
+                </span>
             </div>
             <h3 className="text-lg font-bold text-gray-900 leading-tight">{item.product.name}</h3>
         </div>
@@ -220,6 +224,9 @@ function DraftCard({ product }: { product: ProductData }) {
       {/* 1. SPECS BADGE */}
       <div className="flex-shrink-0 w-full md:w-32 flex flex-col items-start gap-1">
         <div className="text-3xl font-black text-gray-200 select-none">DRAFT</div>
+        <div className="text-sm font-bold text-orange-600">
+            {product.sellingPrice?.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} DT
+        </div>
         <div className="text-xs font-bold text-gray-500 mt-1">{product.printHours}h Print</div>
         <div className="text-xs text-gray-400">{product.filamentWeight}g Filament</div>
       </div>
